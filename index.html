@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>購物申請表產生器</title>
+<style>
+  :root {
+    --bg: #f3f4f6; --card: #fff; --line: #d1d5db; --text: #111827; --muted: #6b7280;
+    --accent: #c2410c; --accent-soft: #ffedd5; --warn: #fef3c7; --warn-line: #f59e0b; --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+  .ui { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; }
+  header p { margin: 0 0 16px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  #dropzone { text-align: center; border: 2px dashed var(--line); cursor: pointer; }
+  #dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  #dropzone p { margin: 6px 0; }
+  .hint { color: var(--muted); font-size: 13px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  button:hover { background: #f9fafb; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #9a3412; }
+  button.icon { padding: 4px 7px; line-height: 1; }
+  #progress { margin-top: 14px; }
+  .bar { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #status { margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 12px; }
+  .toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+  input, select, textarea { font: inherit; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  input[type=number] { width: 7em; }
+  table.editor { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.editor th, table.editor td { border-bottom: 1px solid var(--line); padding: 5px 4px; vertical-align: top; text-align: left; }
+  table.editor th { font-weight: 600; color: var(--muted); font-size: 13px; }
+  table.editor textarea { width: 100%; min-height: 2.6em; resize: vertical; }
+  table.editor input.num { width: 6.5em; text-align: right; }
+  table.editor input.qty { width: 4.5em; text-align: right; }
+  table.editor input.remark { width: 100%; }
+  table.editor td.total { text-align: right; white-space: nowrap; padding-top: 10px; }
+  table.editor .warn { background: var(--warn); border-color: var(--warn-line); }
+  table.editor td.ops { white-space: nowrap; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  .check { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #f9fafb; border: 1px solid var(--line); font-size: 14px; }
+  .check.ok { border-color: var(--ok); background: #f0fdf4; }
+  .check.bad { border-color: var(--warn-line); background: var(--warn); }
+  details { margin-top: 12px; }
+  details pre { max-height: 300px; overflow: auto; background: #f9fafb; padding: 10px; font-size: 12px; white-space: pre-wrap; }
+  .legend { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .legend span { display: inline-block; width: 14px; height: 14px; background: var(--warn); border: 1px solid var(--warn-line); vertical-align: -2px; margin-right: 4px; }
+  #preview-title { max-width: 1100px; margin: 0 auto; padding: 0 16px; font-weight: 600; color: var(--muted); }
+
+  /* ---------- Form pages (preview + print) ---------- */
+  #pages { padding: 10px 0 40px; }
+  .page {
+    width: 210mm; min-height: 297mm; padding: 10mm 10mm 8mm; margin: 12px auto; background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15); position: relative; color: #000;
+    font-family: "Times New Roman", Times, "Songti TC", "PMingLiU", "Noto Serif CJK TC", "Noto Serif TC", serif; font-size: 10.5pt; line-height: 1.3;
+  }
+  .page .annex { position: absolute; right: 12mm; top: 10mm; font-style: italic; font-weight: bold; font-size: 10.5pt; }
+  .page .org { text-align: center; font-weight: bold; margin-top: 5mm; font-size: 11pt; }
+  .page .title { text-align: center; font-weight: bold; font-size: 15pt; margin-top: 4mm; }
+  .page .subtitle { text-align: center; font-size: 11pt; margin-top: 1mm; }
+  .page .school { display: flex; align-items: flex-end; margin-top: 5mm; gap: 6mm; }
+  .page .school .lbl { font-size: 9.5pt; white-space: nowrap; }
+  .page .school .val { flex: 1; border-bottom: 1px solid #000; font-weight: bold; font-size: 12.5pt; padding-left: 8mm; padding-bottom: 1px; }
+  .page .bylabels { display: flex; margin-top: 4mm; font-size: 10pt; }
+  .page .bylabels span { width: 32%; }
+  .page .boxes { display: flex; gap: 3mm; margin-top: 1.5mm; }
+  .page table.box { border-collapse: collapse; width: 32%; border: 1.5px solid #000; }
+  .page table.box.small { width: 29%; }
+  .page table.box td { border: 1px solid #000; height: 11mm; padding: 1mm 1.5mm; vertical-align: middle; }
+  .page table.box td.k { width: 42%; font-size: 7.5pt; line-height: 1.15; }
+  .page table.box td.v { font-size: 12pt; text-align: center; }
+  .page table.items { border-collapse: collapse; width: 100%; margin-top: 5mm; border: 1.5px solid #000; }
+  .page table.items th, .page table.items td { border: 1px solid #000; padding: 1mm 1.5mm; vertical-align: middle; }
+  .page table.items th { font-weight: bold; font-size: 9pt; line-height: 1.2; height: 11mm; white-space: nowrap; }
+  .page table.items td { height: 11mm; font-size: 10pt; }
+  .page table.items td.no { text-align: center; }
+  .page table.items td.desc { font-size: 9.5pt; line-height: 1.25; word-break: break-all; }
+  .page table.items td.num { text-align: right; white-space: nowrap; font-size: 9.5pt; }
+  .page table.items td.qty { text-align: center; white-space: nowrap; font-size: 9.5pt; }
+  .page table.items td.rem { font-size: 8.5pt; line-height: 1.2; word-break: break-all; }
+  .page .total { display: flex; justify-content: flex-end; align-items: center; margin-top: 2mm; margin-right: 32%; gap: 3mm; }
+  .page .total .lbl { text-align: center; font-size: 9.5pt; line-height: 1.15; }
+  .page .total .box { border: 1.5px solid #000; width: 32mm; height: 11mm; display: flex; align-items: center; justify-content: flex-end; padding: 0 2mm; font-size: 11pt; font-weight: bold; }
+  .page .purpose { margin-top: 4mm; font-size: 9.5pt; line-height: 1.5; }
+  .page .notes { margin-top: 2.5mm; font-size: 8.5pt; line-height: 1.45; padding-bottom: 6mm; }
+  .page .notes ol { margin: 0; padding-left: 5mm; }
+  .page .rev { position: absolute; right: 10mm; bottom: 5mm; font-size: 8pt; font-style: italic; }
+
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #fff; }
+    .ui, #preview-title { display: none !important; }
+    #pages { padding: 0; }
+    .page { margin: 0; box-shadow: none; width: 210mm; height: 297mm; min-height: 0; page-break-after: always; break-after: page; overflow: hidden; }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="ui">
+  <header>
+    <h1>淘寶訂單截圖 → 購物申請表</h1>
+    <p>上載淘寶「確認訂單」截圖 PDF，自動填寫購物申請表的項目表格（每頁 12 項）。全部辨識在本機瀏覽器完成，可離線使用，不會上傳任何資料。</p>
+  </header>
+
+  <section class="card" id="dropzone">
+    <input type="file" id="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple hidden>
+    <p><strong>把淘寶截圖 PDF 拖放到這裡</strong>，或 <button type="button" id="pick">選擇檔案</button></p>
+    <p class="hint">也接受 PNG / JPG 截圖；可一次選擇多個檔案。</p>
+    <div id="progress" hidden>
+      <div class="bar"><div id="barfill"></div></div>
+      <div id="status"></div>
+    </div>
+  </section>
+
+  <section class="card" id="editor" hidden>
+    <div class="toolbar">
+      <label>幣別
+        <select id="currency">
+          <option value="CNY">人民幣 ¥（淘寶原價）</option>
+          <option value="HKD">港幣 $（按匯率換算）</option>
+        </select>
+      </label>
+      <label id="rateWrap" hidden>匯率（1 人民幣 ＝ <input type="number" id="rate" step="0.0001" min="0" value="1.08"> 港幣）</label>
+      <label>數量單位 <input id="unitText" value="件" size="3"></label>
+      <label>總額
+        <select id="totalMode">
+          <option value="page">每頁小計</option>
+          <option value="all">全部合計（填於最後一頁）</option>
+        </select>
+      </label>
+    </div>
+
+    <table class="editor">
+      <thead>
+        <tr><th>#</th><th>詳情（項目名稱）</th><th>單價（券前）</th><th>數量</th><th>總價</th><th>備註</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="legend"><span></span>黃色欄位表示辨識不確定，請對照截圖核對。</div>
+    <div class="actions">
+      <button type="button" id="addRow">＋ 新增一行</button>
+      <button type="button" id="clearAll">清除全部</button>
+    </div>
+    <div id="check" class="check"></div>
+    <details>
+      <summary>OCR 辨識原文（供核對）</summary>
+      <pre id="rawtext"></pre>
+    </details>
+    <div class="actions">
+      <button type="button" class="primary" id="print">列印</button>
+      <button type="button" class="primary" id="exportPdf">匯出 PDF</button>
+      <span class="hint">匯出 PDF：在列印視窗的「目的地 / 印表機」選擇「另存為 PDF」或「儲存為 PDF」。</span>
+    </div>
+  </section>
+</div>
+<div id="preview-title" hidden>預覽</div>
+<div id="pages"></div>
+
+<script>{{PDF_WORKER_JS}}</script>
+<script>{{PDF_JS}}</script>
+<script>{{PARSER_JS}}</script>
+<script type="text/plain" id="blob-pako">{{B64_PAKO}}</script>
+<script type="text/plain" id="blob-core-simd">{{B64_CORE_SIMD}}</script>
+<script type="text/plain" id="blob-core">{{B64_CORE}}</script>
+<script type="text/plain" id="blob-engine">{{B64_ENGINE}}</script>
+<script type="text/plain" id="lang-chi_sim">{{B64_CHI}}</script>
+<script type="text/plain" id="lang-eng">{{B64_ENG}}</script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const P = window.TaobaoParser;
+  const PAGE_ROWS = 12;
+
+  // ---------- state ----------
+  const state = {
+    items: [],       // { title, unit (CNY), qty, remark, unc: {title,unit,qty}, raw }
+    summary: null,   // { count, amount }
+    rawTexts: [],
+    debug: [],
+    currency: 'CNY', rate: 1.08, unitText: '件', totalMode: 'page',
+  };
+  window.__app = { state, done: null };
+
+  // ---------- embedded blobs ----------
+  async function blobBytes(id) {
+    const b64 = $(id).textContent.trim();
+    const res = await fetch('data:application/octet-stream;base64,' + b64);
+    return res.arrayBuffer();
+  }
+  function wasmSimd() {
+    try {
+      return WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11]));
+    } catch (e) { return false; }
+  }
+
+  // ---------- OCR engine (worker with main-thread fallback) ----------
+  const OCR = {
+    worker: null, inline: false, seq: 0, pending: new Map(), ready: null,
+    forceInline: /inline/.test(location.hash),
+    async start(setStatus) {
+      if (this.ready) return this.ready;
+      this.ready = (async () => {
+        setStatus('正在載入辨識引擎…');
+        const simd = wasmSimd();
+        const [pako, core, engine, chi, eng] = await Promise.all([
+          blobBytes('blob-pako'), blobBytes(simd ? 'blob-core-simd' : 'blob-core'),
+          blobBytes('blob-engine'), blobBytes('lang-chi_sim'), blobBytes('lang-eng'),
+        ]);
+        const code = [pako, '\n', core, '\n', engine];
+        let ok = false;
+        try {
+          if (this.forceInline) throw new Error('inline mode forced');
+          const url = URL.createObjectURL(new Blob(code, { type: 'text/javascript' }));
+          const w = new Worker(url);
+          this.worker = w;
+          w.onmessage = (e) => {
+            const p = this.pending.get(e.data.id);
+            if (!p) return;
+            this.pending.delete(e.data.id);
+            e.data.ok ? p.resolve(e.data.result) : p.reject(new Error(e.data.error));
+          };
+          const failed = new Promise((_, rej) => { w.onerror = (ev) => rej(new Error('worker error: ' + (ev.message || ''))); });
+          await Promise.race([this.call({ type: 'init', langs: { chi_sim: chi.slice(0), eng: eng.slice(0) } }), failed]);
+          ok = true;
+        } catch (err) {
+          console.warn('Worker unavailable, falling back to main thread', err);
+          try { this.worker && this.worker.terminate(); } catch (e) {}
+          this.worker = null;
+        }
+        if (!ok) {
+          this.inline = true;
+          const dec = new TextDecoder();
+          (0, eval)(dec.decode(pako) + '\n' + dec.decode(core) + '\n' + dec.decode(engine));
+          await window.TaobaoOcrEngine.init({ chi_sim: chi, eng: eng });
+        }
+      })();
+      return this.ready;
+    },
+    call(msg) {
+      if (this.inline) {
+        if (msg.type === 'recognize') return Promise.resolve(window.TaobaoOcrEngine.recognize(msg));
+        return Promise.resolve(true);
+      }
+      const id = ++this.seq;
+      msg.id = id;
+      return new Promise((resolve, reject) => {
+        this.pending.set(id, { resolve, reject });
+        this.worker.postMessage(msg);
+      });
+    },
+    async recognize(png, opts) {
+      return this.call(Object.assign({ type: 'recognize', png }, opts));
+    },
+  };
+
+  // ---------- canvas helpers ----------
+  function canvasToPng(canvas) {
+    return new Promise((resolve) => canvas.toBlob((b) => b.arrayBuffer().then(resolve), 'image/png'));
+  }
+  function cropPng(canvas, box, pad, zoom) {
+    zoom = zoom || 1;
+    const x = Math.max(0, Math.floor(box.left - pad));
+    const y = Math.max(0, Math.floor(box.top - pad));
+    const w = Math.min(canvas.width - x, Math.ceil(box.width + 2 * pad));
+    const h = Math.min(canvas.height - y, Math.ceil(box.height + 2 * pad));
+    const c = document.createElement('canvas');
+    c.width = Math.round(w * zoom); c.height = Math.round(h * zoom);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(canvas, x, y, w, h, 0, 0, c.width, c.height);
+    return canvasToPng(c);
+  }
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  // ---------- PDF: find embedded screenshots ----------
+  async function imageRects(page) {
+    const ops = await page.getOperatorList();
+    const O = pdfjsLib.OPS;
+    const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
+    let ctm = [1, 0, 0, 1, 0, 0];
+    const stack = [];
+    const rects = [];
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i], a = ops.argsArray[i];
+      if (fn === O.save) stack.push(ctm);
+      else if (fn === O.restore) ctm = stack.pop() || ctm;
+      else if (fn === O.transform) ctm = mul(ctm, a);
+      else if (fn === O.paintFormXObjectBegin) { stack.push(ctm); if (a && a[0]) ctm = mul(ctm, a[0]); }
+      else if (fn === O.paintFormXObjectEnd) ctm = stack.pop() || ctm;
+      else if (fn === O.paintImageXObject || fn === O.paintJpegXObject || fn === O.paintImageXObjectRepeat) {
+        const xs = [ctm[4], ctm[0] + ctm[4], ctm[2] + ctm[4], ctm[0] + ctm[2] + ctm[4]];
+        const ys = [ctm[5], ctm[1] + ctm[5], ctm[3] + ctm[5], ctm[1] + ctm[3] + ctm[5]];
+        rects.push({ name: a[0], x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) });
+      }
+    }
+    return rects;
+  }
+  function rowMajor(rects) {
+    const sorted = rects.slice().sort((a, b) => a.top - b.top);
+    const rows = [];
+    for (const r of sorted) {
+      const row = rows[rows.length - 1];
+      if (row && r.top < row.top + row.h * 0.5) { row.items.push(r); }
+      else rows.push({ top: r.top, h: r.height, items: [r] });
+    }
+    const out = [];
+    for (const row of rows) out.push(...row.items.sort((a, b) => a.left - b.left));
+    return out;
+  }
+
+  async function screensFromPdf(buf, label, setStatus) {
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const screens = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      setStatus(`正在讀取 ${label} 第 ${p} / ${doc.numPages} 頁…`);
+      const page = await doc.getPage(p);
+      const base = page.getViewport({ scale: 1 });
+      let rects = (await imageRects(page)).map((r) => {
+        const [x0, y0] = pdfjsLib.Util.applyTransform([r.x, r.y], base.transform);
+        const [x1, y1] = pdfjsLib.Util.applyTransform([r.x + r.w, r.y + r.h], base.transform);
+        return { name: r.name, left: Math.min(x0, x1), top: Math.min(y0, y1), width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
+      }).filter((r) => r.width > base.width * 0.12 && r.height > base.height * 0.12);
+      if (!rects.length) rects = [{ left: 0, top: 0, width: base.width, height: base.height }];
+      rects = rowMajor(rects);
+      for (let i = 0; i < rects.length; i++) {
+        const r = rects[i];
+        let nativeW = 0;
+        try { const o = r.name && page.objs.get(r.name); nativeW = (o && o.width) || 0; } catch (e) { nativeW = 0; }
+        const targetW = clamp(nativeW ? nativeW * 2 : r.width * 5.5, 900, 1700);
+        const scale = targetW / r.width;
+        const vp = page.getViewport({ scale, offsetX: -r.left * scale, offsetY: -r.top * scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(r.width * scale);
+        canvas.height = Math.round(r.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        screens.push({ canvas, label: `${label} 第 ${p} 頁 截圖 ${i + 1}` });
+      }
+    }
+    return screens;
+  }
+
+  async function screenFromImage(file, label) {
+    const bmp = await createImageBitmap(file);
+    const scale = bmp.width < 900 ? 1100 / bmp.width : (bmp.width > 1700 ? 1700 / bmp.width : 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    return { canvas, label };
+  }
+
+  // ---------- OCR one screenshot ----------
+  const DIGITS = '0123456789.¥ ';
+  async function ocrScreen(screen) {
+    const canvas = screen.canvas;
+    const png = await canvasToPng(canvas);
+    const first = await OCR.recognize(png, { lang: 'chi_sim', psm: 6, tsv: true });
+    const lines = P.tsvToLines(first.tsv || '');
+    state.debug.push({ label: screen.label, width: canvas.width, tsv: first.tsv || '' });
+    const parsed = P.parseScreenshot(lines, canvas.width);
+    const pad = Math.round(canvas.width * 0.008) + 3;
+    const items = [];
+    for (const it of parsed.items) {
+      let price = { pre: null, coupon: null, uncertain: true };
+      let priceRaw = '';
+      if (it.priceLine && it.priceLine.zoneBox) {
+        const hasCoupon = P.hasCouponMark(it.priceLine);
+        // Nothing is drawn to the right of a price line, so widen the crop to catch a cut-off last price.
+        const pb = it.priceLine.zoneBox;
+        const pbox = { left: pb.left, top: pb.top, width: Math.min(canvas.width - pb.left, pb.width + canvas.width * 0.08), height: pb.height };
+        const crop = await cropPng(canvas, pbox, pad);
+        const crop15 = await cropPng(canvas, pbox, pad, 1.5);
+        const eng = await OCR.recognize(crop.slice(0), { lang: 'eng', psm: 7, whitelist: DIGITS });
+        const eng15 = await OCR.recognize(crop15, { lang: 'eng', psm: 7, whitelist: DIGITS });
+        const chi = await OCR.recognize(crop.slice(0), { lang: 'chi_sim', psm: 7, whitelist: DIGITS });
+        const chiFree = await OCR.recognize(crop, { lang: 'chi_sim', psm: 7 });
+        const texts = [eng.text, eng15.text, chi.text, chiFree.text, it.priceLine.zoneText];
+        price = P.choosePrice(texts.map((t) => P.parsePrice(t, hasCoupon)));
+        priceRaw = texts.map((t) => (t || '').trim()).join(' | ');
+      }
+      items.push({
+        title: it.title,
+        unit: price.pre,
+        qty: it.qtyInfo.qty,
+        remark: it.store || '',
+        unc: { title: !!it.titleMissing, unit: price.uncertain || price.pre == null, qty: !!it.qtyInfo.uncertain },
+        raw: { title: it.titleRaw, price: priceRaw, screen: screen.label },
+      });
+    }
+    let summary = null;
+    if (parsed.summary.line) {
+      const crop = await cropPng(canvas, parsed.summary.line.box, pad);
+      const eng = await OCR.recognize(crop, { lang: 'eng', psm: 7, whitelist: DIGITS });
+      const pr = P.parsePrice(eng.text, false) || P.parsePrice(parsed.summary.line.text, false);
+      summary = { count: parsed.summary.count, amount: pr ? pr.pre : null };
+    }
+    return { items, summary, text: (first.text || '').trim() };
+  }
+
+  // ---------- file processing ----------
+  let busy = false;
+  async function processFiles(files) {
+    if (busy || !files.length) return;
+    busy = true;
+    const progress = $('progress'), fill = $('barfill'), statusEl = $('status');
+    progress.hidden = false;
+    const setStatus = (t, frac) => { statusEl.textContent = t; if (frac != null) fill.style.width = Math.round(frac * 100) + '%'; };
+    try {
+      setStatus('準備中…', 0.02);
+      const engineReady = OCR.start(setStatus);
+      const screens = [];
+      for (const f of files) {
+        if (/pdf$/i.test(f.name) || f.type === 'application/pdf') {
+          screens.push(...await screensFromPdf(await f.arrayBuffer(), f.name, setStatus));
+        } else if (/^image\//.test(f.type)) {
+          screens.push(await screenFromImage(f, f.name));
+        }
+      }
+      if (!screens.length) throw new Error('找不到可處理的 PDF 或圖片。');
+      await engineReady;
+      const newItems = [];
+      let summary = null;
+      const texts = [];
+      for (let i = 0; i < screens.length; i++) {
+        setStatus(`正在辨識截圖 ${i + 1} / ${screens.length}…`, 0.1 + 0.9 * (i / screens.length));
+        const r = await ocrScreen(screens[i]);
+        newItems.push(...r.items);
+        if (r.summary) summary = r.summary;
+        texts.push(`===== ${screens[i].label} =====\n${r.text}`);
+      }
+      setStatus(`完成：辨識到 ${newItems.length} 個項目。`, 1);
+      state.items = state.items.concat(newItems);
+      if (summary) state.summary = summary;
+      state.rawTexts = state.rawTexts.concat(texts);
+      if (!newItems.length) setStatus('完成，但未能辨識到任何項目。請確認截圖為淘寶「確認訂單」頁面，或手動新增項目。', 1);
+      render();
+      $('editor').hidden = false;
+      $('preview-title').hidden = false;
+    } catch (err) {
+      console.error(err);
+      setStatus('處理失敗：' + (err && err.message || err), 0);
+    } finally {
+      busy = false;
+      $('file').value = '';
+    }
+  }
+
+  // ---------- rendering ----------
+  const symbol = () => (state.currency === 'HKD' ? '$' : '¥');
+  const conv = (cny) => (cny == null || isNaN(cny)) ? null : (state.currency === 'HKD' ? cny * state.rate : cny);
+  const money = (v) => (v == null ? '' : symbol() + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const lineTotal = (it) => (it.unit == null || isNaN(it.unit)) ? null : conv(it.unit) * (Number(it.qty) || 0);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function renderEditor() {
+    const tb = $('rows');
+    tb.innerHTML = '';
+    state.items.forEach((it, i) => {
+      const tr = document.createElement('tr');
+      const tip = (k) => esc((it.raw && (k === 'unit' ? it.raw.price : it.raw.title)) || '');
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><textarea data-k="title" data-i="${i}" class="${it.unc.title ? 'warn' : ''}" title="OCR：${tip('title')}">${esc(it.title)}</textarea></td>
+        <td><input type="number" step="0.01" min="0" class="num ${it.unc.unit ? 'warn' : ''}" data-k="unit" data-i="${i}" value="${it.unit == null ? '' : it.unit}" title="人民幣原價。OCR：${tip('unit')}"></td>
+        <td><input type="number" step="1" min="0" class="qty ${it.unc.qty ? 'warn' : ''}" data-k="qty" data-i="${i}" value="${esc(it.qty)}"></td>
+        <td class="total">${money(lineTotal(it))}</td>
+        <td><input class="remark" data-k="remark" data-i="${i}" value="${esc(it.remark)}"></td>
+        <td class="ops">
+          <button type="button" class="icon" data-op="up" data-i="${i}" title="上移">↑</button>
+          <button type="button" class="icon" data-op="down" data-i="${i}" title="下移">↓</button>
+          <button type="button" class="icon" data-op="del" data-i="${i}" title="刪除">✕</button>
+        </td>`;
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderCheck() {
+    const el = $('check');
+    const n = state.items.length;
+    const qty = state.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+    const sumCny = state.items.reduce((s, it) => s + ((it.unit == null || isNaN(it.unit)) ? 0 : it.unit * (Number(it.qty) || 0)), 0);
+    const unsure = state.items.filter((it) => it.unc.title || it.unc.unit || it.unc.qty).length;
+    let html = `已列出 <b>${n}</b> 個項目，共 <b>${qty}</b> 件，券前合計 <b>¥${sumCny.toFixed(2)}</b>`;
+    if (state.currency === 'HKD') html += `（約 $${(sumCny * state.rate).toFixed(2)}）`;
+    html += '。';
+    el.className = 'check';
+    if (state.summary && state.summary.amount != null) {
+      const s = state.summary;
+      const okAmt = Math.abs(s.amount - sumCny) < 0.011;
+      const okCnt = s.count == null || s.count === qty;
+      html += `<br>淘寶截圖「商品總價」：共 <b>${s.count == null ? '?' : s.count}</b> 件 <b>¥${s.amount.toFixed(2)}</b> — `;
+      if (okAmt && okCnt) { html += '<b>✓ 與列表相符</b>'; el.className = 'check ok'; }
+      else { html += '<b>✗ 與列表不符</b>，請核對黃色欄位或遺漏／重複的項目。'; el.className = 'check bad'; }
+    } else {
+      html += '<br>未找到淘寶「商品總價」截圖，未能自動核對總額。';
+    }
+    if (unsure) html += `<br>有 <b>${unsure}</b> 個項目含不確定的辨識結果（黃色）。`;
+    el.innerHTML = html;
+  }
+
+  function formPage(items, startNo, total) {
+    const rows = [];
+    for (let i = 0; i < PAGE_ROWS; i++) {
+      const it = items[i];
+      rows.push(`<tr><td class="no">${i + 1}</td><td class="desc">${it ? esc(it.title) : ''}</td><td class="num">${it ? money(conv(it.unit)) : ''}</td><td class="qty">${it ? esc(it.qty) + (state.unitText ? ' ' + esc(state.unitText) : '') : ''}</td><td class="num">${it ? money(lineTotal(it)) : ''}</td><td class="rem">${it ? esc(it.remark) : ''}</td></tr>`);
+    }
+    return `<section class="page">
+  <div class="annex">Annex 3D</div>
+  <div class="org">Hong Chi Association&nbsp;&nbsp;匡智會</div>
+  <div class="title">PURCHASE REQUISITION (for purchase $5,000 or below)</div>
+  <div class="subtitle">購物申請表 (購貨$5,000或以下)</div>
+  <div class="school"><span class="lbl">學校名稱<br>Name of School:</span><span class="val">Hong Chi Morninghill School, Tsui Lam</span></div>
+  <div class="bylabels"><span>Requested by 申請人</span><span>Approved by 批准人</span></div>
+  <div class="boxes">
+    <table class="box"><tr><td class="k">姓名 / 職位<br>Name / Position</td><td class="v"></td></tr><tr><td class="k">簽署 / 日期<br>Signature / date</td><td class="v"></td></tr></table>
+    <table class="box"><tr><td class="k">姓名 / 職位<br>Name / Position</td><td class="v">霍俊榮校長</td></tr><tr><td class="k">簽署 / 日期<br>Signature / date</td><td class="v"></td></tr></table>
+    <table class="box small"><tr><td class="k">組別 / 科目<br>Panel / Subject</td><td class="v"></td></tr><tr><td class="k">津貼類別<br>Items</td><td class="v"></td></tr></table>
+  </div>
+  <table class="items">
+    <colgroup><col style="width:7%"><col style="width:31%"><col style="width:10%"><col style="width:9%"><col style="width:13%"><col style="width:30%"></colgroup>
+    <thead><tr><th>項目<br>Item<br>No.</th><th>Description 詳情</th><th>單價<br>Unit Price</th><th>數量/單位<br>Qty / Unit</th><th>總價<br>Total Cost</th><th>Remarks 備註</th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>
+  <div class="total"><span class="lbl">總額<br>Total</span><span class="box">${total == null ? '' : money(total)}</span></div>
+  <div class="purpose"><u>Such request is for * replacement / new item / stock replenish. (* delete as appropriate)</u><br><i>購買用途：*更換 / 新購 / 補充存貨 (*請刪去不適用者)</i></div>
+  <div class="notes">Notes 備註:
+    <ol>
+      <li>For expenditure paid by petty cash, this Form is NOT required. 如用零用現金購買，不須填寫此表。</li>
+      <li>For expenditure accompanied by quotation or tender, this Form is NOT required. 如以報價 / 投標方法購買，不須填寫此表。</li>
+      <li>Competitive bidding not required for procurement of any stores or services provided that a member of school staff at an appropriate level certifies that such procurement is essential and the prices are fair and reasonable.<br>毋須為採購物料或服務進行公開競投，但校內適當職級的人員須證明有關採購是必須的及價格公平合理。</li>
+    </ol>
+  </div>
+  <div class="rev">Rev. 12/2023</div>
+</section>`;
+  }
+
+  function renderPages() {
+    const pages = [];
+    const items = state.items;
+    const grand = items.reduce((s, it) => s + (lineTotal(it) || 0), 0);
+    const count = Math.max(1, Math.ceil(items.length / PAGE_ROWS));
+    for (let p = 0; p < count; p++) {
+      const slice = items.slice(p * PAGE_ROWS, (p + 1) * PAGE_ROWS);
+      let total;
+      if (state.totalMode === 'all') total = (p === count - 1) ? grand : null;
+      else total = slice.reduce((s, it) => s + (lineTotal(it) || 0), 0);
+      pages.push(formPage(slice, p * PAGE_ROWS + 1, total));
+    }
+    $('pages').innerHTML = pages.join('');
+  }
+
+  function render() { renderEditor(); renderCheck(); renderPages(); $('rawtext').textContent = state.rawTexts.join('\n\n'); }
+
+  // ---------- events ----------
+  $('pick').addEventListener('click', (e) => { e.stopPropagation(); $('file').click(); });
+  $('dropzone').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', (e) => processFiles(Array.from(e.target.files)));
+  ['dragenter', 'dragover'].forEach((ev) => $('dropzone').addEventListener(ev, (e) => { e.preventDefault(); $('dropzone').classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach((ev) => $('dropzone').addEventListener(ev, (e) => { e.preventDefault(); $('dropzone').classList.remove('drag'); }));
+  $('dropzone').addEventListener('drop', (e) => processFiles(Array.from(e.dataTransfer.files)));
+
+  $('rows').addEventListener('input', (e) => {
+    const t = e.target, i = +t.dataset.i, k = t.dataset.k;
+    if (!k || !state.items[i]) return;
+    const it = state.items[i];
+    if (k === 'unit') { it.unit = t.value === '' ? null : parseFloat(t.value); it.unc.unit = false; }
+    else if (k === 'qty') { it.qty = t.value === '' ? 0 : parseInt(t.value, 10); it.unc.qty = false; }
+    else { it[k] = t.value; if (k === 'title') it.unc.title = false; }
+    t.classList.remove('warn');
+    const cell = t.closest('tr').querySelector('td.total');
+    if (cell) cell.textContent = money(lineTotal(it));
+    renderCheck(); renderPages();
+  });
+  $('rows').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-op]');
+    if (!b) return;
+    const i = +b.dataset.i, op = b.dataset.op, a = state.items;
+    if (op === 'del') a.splice(i, 1);
+    else if (op === 'up' && i > 0) [a[i - 1], a[i]] = [a[i], a[i - 1]];
+    else if (op === 'down' && i < a.length - 1) [a[i + 1], a[i]] = [a[i], a[i + 1]];
+    render();
+  });
+  $('addRow').addEventListener('click', () => {
+    state.items.push({ title: '', unit: null, qty: 1, remark: '', unc: { title: false, unit: false, qty: false }, raw: null });
+    render();
+    const ta = $('rows').querySelector('tr:last-child textarea');
+    if (ta) ta.focus();
+  });
+  $('clearAll').addEventListener('click', () => {
+    if (!state.items.length || confirm('清除全部項目？')) { state.items = []; state.summary = null; state.rawTexts = []; render(); $('rawtext').textContent = ''; }
+  });
+  $('currency').addEventListener('change', (e) => { state.currency = e.target.value; $('rateWrap').hidden = state.currency !== 'HKD'; render(); });
+  $('rate').addEventListener('input', (e) => { state.rate = parseFloat(e.target.value) || 0; render(); });
+  $('unitText').addEventListener('input', (e) => { state.unitText = e.target.value.trim(); renderPages(); });
+  $('totalMode').addEventListener('change', (e) => { state.totalMode = e.target.value; renderPages(); });
+  $('print').addEventListener('click', () => window.print());
+  $('exportPdf').addEventListener('click', () => window.print());
+
+  renderPages();
+  window.__app.processFiles = processFiles;
+})();
+</script>
+</body>
+</html>
